@@ -27,7 +27,9 @@ import (
 // Example is we're trying to find a 2 bedroom apartment for July 1, not basement or condo,
 // 5km radius from coordinates except for Hochelaga and Outremont, specific areas of town we want to avoid
 
-// That's easy to do with a few 'removal' keywords that flag a post as definitely not interesting:
+// That's easy to do by starting with Craigslist and Kijiji's built-in filters from their website
+// (RSS links configured below), supplemented with a few 'removal' keywords that flag a post as
+// definitely not interesting.
 //
 var REMOVALS = []string{ "may 1*",
                          "june 1*",
