@@ -11,7 +11,8 @@ That's easy to do by starting with Craigslist and Kijiji's built-in filters from
     "outremont",
     "condo",
     "basement",
-    "sous[- ]sol"
-    ( "2e", "triplex" )   # combine matches - don't want to live in middle floor of a 3 storey building
+    "sous[- ]sol"         # bilingual support
+    ( "2e", "triplex" )
+    ( "2nd", "triplex" )  # combine matches - don't want to live in middle floor of a 3 storey building
     
 In this way, obvious negative matches are filtered out, and potential positives are emailed almost in real-time (subject to provider API rate-limiting), allowing an effort (of keeping up with the email stream) to be rewarded by being (often) the first person to call about the post.
