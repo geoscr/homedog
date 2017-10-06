@@ -24,10 +24,15 @@ import (
     _ "github.com/go-sql-driver/mysql"
 )
 
+// Example is we're trying to find a 2 bedroom apartment for July 1, not basement or condo,
+// 5km radius from coordinates except for Hochelaga and Outremont, specific areas of town we want to avoid
+
+// That's easy to do with a few 'removal' keywords that flag a post as definitely not interesting:
+//
 var REMOVALS = []string{ "may 1*",
                          "june 1*",
-                         "boringtown",
-                         "ghetto",
+                         "hochelaga",
+                         "outremont",
                          "condo",
                          "basement",
                          "sous[- ]sol",
