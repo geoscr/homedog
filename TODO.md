@@ -1,0 +1,6 @@
+- user sign-up (email sign-in link)\
+- postgres/docker
+- tables:
+    - user-email, link
+- sending email
+- web interface - react/webpack
