@@ -7,7 +7,7 @@ volumes:
 
 services:
   postgres:
-    container_name: db.homedog  # host
+    container_name: homedog.db  # host
     image: postgres:10-alpine
     restart: always
     ports:
@@ -21,14 +21,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
   # Proxy servers & webpack-dev-servers to separate local domains - see each service's env var VIRTUAL_HOST
-  nginx-proxy:
-    image: jwilder/nginx-proxy
-    ports:
-      - "80:80"
-    volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-    restart: always
-    privileged: true
+  #nginx-proxy:
+  #  image: jwilder/nginx-proxy
+  #  ports:
+  #    - "80:80"
+  #  volumes:
+  #    - /var/run/docker.sock:/tmp/docker.sock:ro
+  #  restart: always
+  #  privileged: true
 
   homedog:
     container_name: homedog
@@ -43,4 +43,5 @@ services:
       - postgres:db.homedog
     env_file:
       - .env
+    restart: always
     #hostname: homedog
