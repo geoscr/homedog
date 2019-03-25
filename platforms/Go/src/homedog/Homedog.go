@@ -2,12 +2,12 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/xml"
 	"flag"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	_ "github.com/go-sql-driver/mysql"
+	"log"
+	// log "github.com/Sirupsen/logrus"
+	"github.com/go-pg/pg"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/transform"
@@ -22,6 +22,9 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"homedog/ORM"
+	Database "homedog/Platform/Database"
 )
 
 // Example is we're trying to find a 2 bedroom apartment for July 1, not basement or condo,
@@ -55,80 +58,57 @@ type Item struct {
 }
 
 var (
-	dbi        *sql.DB
+	db         *pg.DB
 	flag_email *bool
 	flag_init  *bool
+	SENDER     = os.Getenv("HOMEDOG_SENDER")
 )
 
 func init() {
+	log.SetFlags(log.LstdFlags | log.Llongfile | log.Lmicroseconds)
+
 	flag_email = flag.Bool("email", true, "send emails")
-	flag_init = flag.Bool("init", false, "init db")
 	flag.Parse()
 
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
-	db_connect()
+	db_init()
 	// }
 
 }
 
 func main() {
-	if *flag_init {
-		db_init()
-		return
-	}
+	log.Println("Homedog starting")
 
 	// set up filters using Craigslist and Kijiji websites, then click RSS and copy the URL in here
-	//cl := "https://...craigslist.ca/search/apa?lang=en&cc=us&availabilityMode=0&format=rss&max_price=...&min_bedrooms=...&postal=......&search_distance=5"
-	//kj := "http://www.kijiji.ca/rss-srp-2-bedroom-apartments-condos/.../...r5.0?price=....&address=......&ll=45...,-73...&furnished=0"
+	cl := "https://montreal.craigslist.org/search/apa?availabilityMode=0&bundleDuplicates=1&format=rss&hasPic=1&max_bedrooms=1&max_price=1600&min_bedrooms=1&min_price=1400&postal=H2T2E6&search_distance=3&lang=en&cc=us"
+
+	kj := "https://www.kijiji.ca/rss-srp-apartments-condos/ville-de-montreal/1+bedroom/c37l1700281a27949001?price=1400__1600&furnished=0"
 
 	for {
-		//check("craigslist", cl, my_email)
-		//check("kijiji", kj, my_email)
-		log.Println("sleeping...")
-		time.Sleep(time.Duration(60*6) * time.Second)
+		check("craigslist", cl, SENDER)
+		check("kijiji", kj, SENDER)
+
+		duration := 2 * time.Second
+		log.Println("sleeping for", duration, "...")
+		// time.Sleep(time.Duration(60*6) * time.Second)
+		time.Sleep(duration)
 	}
 }
 
 // --------------------------------------------------------------------------------
 
-func db_connect() {
-	var err error
-	dbi, err = sql.Open("mysql", "root:password@/homedog")
-	if err != nil {
-		log.Println("DB down : ", err)
-	}
-}
-
 func db_init() {
-	log.Println("Resetting DB and exiting")
+	log.Println("Connecting to DB")
 
-	_, err := dbi.Exec(`DROP TABLE IF EXISTS posts`)
-	if err != nil {
-		log.Fatal(err)
-	}
+	db = Database.Connect()
 
-	_, err = dbi.Exec(`CREATE TABLE posts (
-                           id        int(11) unsigned  NOT NULL AUTO_INCREMENT,
-                           counter   int(11) unsigned  NOT NULL,
-                           source    text              NOT NULL,
-                           title     text              NOT NULL,
-                           body      text              NOT NULL,
-                           url       text              NOT NULL,
-                           # state     enum             ('NEW','FLAG','HIDE') DEFAULT 'NEW',
-                           timestamp datetime         DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                           PRIMARY KEY (id)
-                         ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;`)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Println(db)
 }
 
 // --------------------------------------------------------------------------------
 
 func check(source string, url string, email string) {
-	log.WithFields(log.Fields{
-		source: source,
-	}).Info("Check")
+	log.Println("Checking", source)
 
 	items := fetch(source, url)
 
@@ -143,8 +123,14 @@ func fetch(source string, url string) []Item {
 		xml_bytes []byte
 	)
 
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	client.Get(url)
+
 	if !strings.HasPrefix(url, "file://") {
-		res, err := http.Get(url)
+		res, err := client.Get(url)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -217,30 +203,16 @@ func preprocess(items []Item) {
 
 // items from RSS
 func post_items(source string, items []Item, email string) {
+	var posts []ORM.Post
+	if err := db.Model(&posts).Where("recip = ?", email).Select(); err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+
 	for _, rssItem := range items {
-		rows, err := dbi.Query("select id, title, body, url from posts where recip=?", email)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		defer rows.Close()
-
 		match := false
-		for rows.Next() {
-			var (
-				id    int
-				title string
-				body  string
-				url   string
-			)
-			err = rows.Scan(&id, &title, &body, &url)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			dbItem := Item{id, title, url, body}
-
-			score := rate(rssItem, dbItem)
+		for _, post := range posts {
+			score := rate(rssItem, &post)
 
 			if score >= 1 {
 				match = true
@@ -253,7 +225,7 @@ func post_items(source string, items []Item, email string) {
 	}
 }
 
-func rate(rssItem Item, dbItem Item) int {
+func rate(rssItem Item, dbItem *ORM.Post) int {
 	score := 0
 
 	rssTitle := normalize(rssItem.Title)
@@ -268,17 +240,11 @@ func rate(rssItem Item, dbItem Item) int {
 	if rssBody == dbBody {
 		score += 1
 	}
-	if rssItem.Link == dbItem.Link {
+	if rssItem.Link == dbItem.Url {
 		score += 1
 	}
 
-	if score > 1 && rssItem.Link != dbItem.Link {
-		// log.WithFields(log.Fields{
-		//     "rssTitle": rssTitle,
-		//     "rssBody": rssBody,
-		//     "dbTitle": dbTitle,
-		//     "dbBody": dbBody,
-		// })
+	if score > 1 && rssItem.Link != dbItem.Url {
 		// increment(dbItem)
 	}
 
@@ -330,6 +296,7 @@ func normalize(s string) string {
 	return n
 }
 
+/*
 func increment(dbItem Item) {
 	log.WithFields(log.Fields{
 		"title": dbItem.Title,
@@ -346,26 +313,26 @@ func increment(dbItem Item) {
 		log.Fatal(err)
 	}
 }
+*/
 
 func send(source string, rssItem Item, recip string) {
-	log.WithFields(log.Fields{
-		"title": rssItem.Title,
-	}).Info("Send")
+	log.Println("Sending:", rssItem.Title)
 
-	stmt, err := dbi.Prepare("INSERT INTO posts(source, recip, title, body, url) VALUES(?,?,?,?,?)")
-	if err != nil {
+	post := ORM.Post{
+		Source:  source,
+		Recip:   recip,
+		Title:   rssItem.Title,
+		Body:    rssItem.Body,
+		Url:     rssItem.Link,
+		Counter: 1,
+	}
+	if err := db.Insert(&post); err != nil {
 		log.Fatal(err)
 	}
 
-	res, err := stmt.Exec(source, recip, rssItem.Title, rssItem.Body, rssItem.Link)
-	if err != nil {
-		log.Fatal(err)
-	}
-	id, _ := res.LastInsertId()
+	subject := fmt.Sprintf("Homedog #%d - %s", post.Id, rssItem.Title)
 
-	subject := fmt.Sprintf("Homedog #%d - %s", id, rssItem.Title)
-
-	email(id, recip, source, subject, rssItem.Title, rssItem.Link, rssItem.Body)
+	email(post.Id, recip, source, subject, rssItem.Title, rssItem.Link, rssItem.Body)
 }
 
 func email(id int64, recip string, source string, subject string, title string, link string, body string) {
@@ -373,11 +340,11 @@ func email(id int64, recip string, source string, subject string, title string, 
 		return
 	}
 
-	auth := smtp.PlainAuth("", "key",
-		"secret",
-		"email-smtp.us-east-1.amazonaws.com")
+	auth := smtp.PlainAuth("", os.Getenv("HOMEDOG_AWS_KEY"),
+		os.Getenv("HOMEDOG_AWS_SECRET"),
+		os.Getenv("HOMEDOG_SMTP_HOST"))
 
-	to := []string{"email@example.com", recip}
+	to := []string{SENDER, recip}
 
 	type Post struct {
 		ID      int64
@@ -411,8 +378,16 @@ func email(id int64, recip string, source string, subject string, title string, 
 		panic(err)
 	}
 
+	var (
+		smtpHost   = os.Getenv("HOMEDOG_SMTP_HOST")
+		smtpPort   = os.Getenv("HOMEDOG_SMTP_PORT")
+		smtpServer = fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+	)
+
+	log.Println("Connecting to", smtpServer)
+
 	msg := []byte(doc.Bytes())
-	err = smtp.SendMail("email-smtp.us-east-1.amazonaws.com:587", auth, "email@example.com", to, msg)
+	err = smtp.SendMail(smtpServer, auth, SENDER, to, msg)
 	if err != nil {
 		log.Fatal(err)
 	}

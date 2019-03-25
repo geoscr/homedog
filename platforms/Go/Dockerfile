@@ -15,10 +15,14 @@ ENV PATH /app/bin:$PATH
 COPY --from=dep /dep-setup/src/homedog/vendor /app/src/homedog/vendor
 COPY --from=dep /dep-setup/pkg                /app/pkg
 WORKDIR /app
-ADD src/homedog /app/src/homedog
-RUN go get github.com/derekparker/delve/cmd/dlv
+#ADD src/homedog /app/src/homedog
+#RUN go get github.com/derekparker/delve/cmd/dlv
 
 FROM build AS installer
+WORKDIR /app
+ENV GOPATH /app
+ENV PATH /app/bin:$PATH
+ADD src/homedog /app/src/homedog
 RUN go install homedog
 
 CMD [ "/app/bin/homedog" ]
