@@ -37,7 +37,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      #- ./platforms/Go/config:/app/config
+      - ./platforms/Go/config:/app/config
       - ./platforms/Go/src:/app/src
     links:
       - postgres:db.homedog
