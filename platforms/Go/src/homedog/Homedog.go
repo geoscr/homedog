@@ -72,21 +72,18 @@ func init() {
 
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	db_init()
-	// }
-
 }
 
 func main() {
 	log.Println("Homedog starting")
 
-	// set up filters using Craigslist and Kijiji websites, then click RSS and copy the URL in here
-	cl := "https://montreal.craigslist.org/search/apa?availabilityMode=0&bundleDuplicates=1&format=rss&hasPic=1&max_bedrooms=1&max_price=1600&min_bedrooms=1&min_price=1400&postal=H2T2E6&search_distance=3&lang=en&cc=us"
-
-	kj := "https://www.kijiji.ca/rss-srp-apartments-condos/ville-de-montreal/1+bedroom/c37l1700281a27949001?price=1400__1600&furnished=0"
+	config := getSubscribers()
 
 	for {
-		check("craigslist", cl, SENDER)
-		check("kijiji", kj, SENDER)
+		for _, subscriber := range config.Subscribers {
+			check("craigslist", subscriber)
+			check("kijiji", subscriber)
+		}
 
 		duration := 2 * time.Second
 		log.Println("sleeping for", duration, "...")
@@ -107,21 +104,23 @@ func db_init() {
 
 // --------------------------------------------------------------------------------
 
-func check(source string, url string, email string) {
+func check(source string, subscriber *Subscriber) { //url string, email string) {
 	log.Println("Checking", source)
 
-	items := fetch(source, url)
+	items := fetch(source, subscriber)
 
-	post_items(source, items, email)
+	post_items(source, items, subscriber.Email)
 }
 
 // --------------------------------------------------------------------------------
 
-func fetch(source string, url string) []Item {
+func fetch(source string, subscriber *Subscriber) []Item {
 	var (
 		err       error
 		xml_bytes []byte
+		url       = subscriber.UrlForSource(source)
 	)
+	log.Println("Fetch:", source, url)
 
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
@@ -316,7 +315,7 @@ func increment(dbItem Item) {
 */
 
 func send(source string, rssItem Item, recip string) {
-	log.Println("Sending:", rssItem.Title)
+	log.Printf("Sending to %s: %s\n", recip, rssItem.Title)
 
 	post := ORM.Post{
 		Source:  source,
@@ -384,7 +383,7 @@ func email(id int64, recip string, source string, subject string, title string, 
 		smtpServer = fmt.Sprintf("%s:%s", smtpHost, smtpPort)
 	)
 
-	log.Println("Connecting to", smtpServer)
+	// log.Println("Connecting to", smtpServer)
 
 	msg := []byte(doc.Bytes())
 	err = smtp.SendMail(smtpServer, auth, SENDER, to, msg)
