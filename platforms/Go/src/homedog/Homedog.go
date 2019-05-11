@@ -75,7 +75,7 @@ func init() {
 }
 
 func main() {
-	log.Println("Homedog starting")
+	log.Println("Homedog v0.2 starting")
 
 	config := getSubscribers()
 
@@ -85,7 +85,7 @@ func main() {
 			check("kijiji", subscriber)
 		}
 
-		duration := 2 * time.Second
+		duration := 60 * time.Second
 		log.Println("sleeping for", duration, "...")
 		// time.Sleep(time.Duration(60*6) * time.Second)
 		time.Sleep(duration)
