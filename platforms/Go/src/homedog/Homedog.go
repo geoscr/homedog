@@ -224,6 +224,9 @@ func post_items(source string, items []Item, email string) {
 	}
 }
 
+// Comparison function; contains various ideas but the main one is use of
+// normalize() to compare title and body (if either match exactly, post
+// is considered a duplicate).
 func rate(rssItem Item, dbItem *ORM.Post) int {
 	score := 0
 
@@ -243,9 +246,9 @@ func rate(rssItem Item, dbItem *ORM.Post) int {
 		score += 1
 	}
 
-	if score > 1 && rssItem.Link != dbItem.Url {
-		// increment(dbItem)
-	}
+	// if score > 1 && rssItem.Link != dbItem.Url {
+	// 	increment(dbItem)
+	// }
 
 	agg := fmt.Sprintf("%s %s", rssTitle, rssBody)
 
@@ -269,6 +272,9 @@ func contains(haystack []string, needle string) bool {
 	return false
 }
 
+// People create duplicate posts by varying the post content slightly by adding
+// punctuation, ampersands, and accents (in French). This function normalizes
+// these differences as much as possible.
 func normalize(s string) string {
 	// Convert &amp; to &, etc
 	s = html.UnescapeString(s)
@@ -287,9 +293,9 @@ func normalize(s string) string {
 
 	// Convert any whitespace to ' '
 	re1 := regexp.MustCompile("(\\s)+")
-	re2 := regexp.MustCompile(" (\\s)+")
-
 	n = re1.ReplaceAllString(n, " ")
+
+	re2 := regexp.MustCompile(" (\\s)+")
 	n = re2.ReplaceAllString(n, "")
 
 	return n
@@ -314,6 +320,7 @@ func increment(dbItem Item) {
 }
 */
 
+// Send email with this post
 func send(source string, rssItem Item, recip string) {
 	log.Printf("Sending to %s: %s\n", recip, rssItem.Title)
 
