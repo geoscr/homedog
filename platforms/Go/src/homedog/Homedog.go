@@ -331,8 +331,8 @@ func email(id int64, recip string, source string, subject string, title string, 
 		return
 	}
 
-	auth := smtp.PlainAuth("", os.Getenv("HOMEDOG_AWS_KEY"),
-		os.Getenv("HOMEDOG_AWS_SECRET"),
+	auth := smtp.PlainAuth("", os.Getenv("HOMEDOG_SMTP_USER"),
+		os.Getenv("HOMEDOG_SMTP_PASSWORD"),
 		os.Getenv("HOMEDOG_SMTP_HOST"))
 
 	to := []string{SENDER, recip}

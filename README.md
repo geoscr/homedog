@@ -30,13 +30,11 @@ First create a .env file then a config file on the host at `../config/config.jso
 
     POSTGRES_PASSWORD=
 
-    HOMEDOG_AWS_REGION=
-    HOMEDOG_AWS_KEY=
-    HOMEDOG_AWS_SECRET=
-
-    HOMEDOG_SMTP_HOST=smtp.example.com
+    HOMEDOG_SMTP_HOST=
     HOMEDOG_SMTP_PORT=587
-
+    HOMEDOG_SMTP_USER=
+    HOMEDOG_SMTP_PASSWORD=
+    
     HOMEDOG_SENDER=homedog@example.com
     HOMEDOG_CONFIG=/app/config/config.json
 
