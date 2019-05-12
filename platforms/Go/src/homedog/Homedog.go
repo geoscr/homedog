@@ -57,7 +57,7 @@ func init() {
 }
 
 func main() {
-	log.Println("Homedog v0.2 starting")
+	log.Println("Homedog v0.3 starting")
 	time.Sleep(time.Second)
 
 	config := getSubscribers()
