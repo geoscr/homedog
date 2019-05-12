@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type SubscriberProperties struct {
@@ -20,6 +21,7 @@ type SubscriberProperties struct {
 	Coordinates     string
 	Search_distance int
 	Furnished       int
+	Exclusions      []string
 }
 
 type Subscriber struct {
@@ -37,7 +39,7 @@ func getSubscribers() *Config {
 		config_file []byte
 	)
 
-	if config_file, err = ioutil.ReadFile("config/config.json"); err != nil {
+	if config_file, err = ioutil.ReadFile(os.Getenv("HOMEDOG_CONFIG")); err != nil {
 		log.Printf("File error: %v\n", err)
 		os.Exit(1)
 	}
@@ -158,4 +160,18 @@ func (sub *Subscriber) WebUrlForKijiji() string {
 	v.Set("meuble", strconv.Itoa(sub.Properties.Furnished))
 
 	return fmt.Sprintf("%s?%s&ll=%s", webUrl, v.Encode(), sub.Properties.Coordinates)
+}
+
+func (sub *Subscriber) WouldRemove(title string, body string) bool {
+	agg := fmt.Sprintf("%s %s", title, body)
+
+	words := strings.Split(agg, " ")
+
+	for _, kwd := range sub.Properties.Exclusions {
+		if contains(words, kwd) {
+			return true
+		}
+	}
+
+	return false
 }

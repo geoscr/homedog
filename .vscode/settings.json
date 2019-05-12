@@ -1,0 +1,17 @@
+{
+    "go.gopath": "${workspaceFolder}/platforms/Go",
+    "go.lintOnSave": "off",
+    //git.ignoreLimitWarning": true,
+    "files.watcherExclude": {
+        "platforms/Go/pkg" :true,
+        "platforms/Go/src/github.com" : true,
+        "platforms/Go/src/golang.org" : true,
+        "platforms/Go/src/google.golang.org" : true,
+        "platforms/Go/src/homedog/vendor"  : true,
+        "platforms/Go/src/homedog/vendor.orig" : true,
+        "**/pkg" :true,
+        "**/vendor"  : true,
+        "**/github.com" : true,
+   },
+   "go.testFlags": [ "-test.v" ], // so t.Log() works
+}

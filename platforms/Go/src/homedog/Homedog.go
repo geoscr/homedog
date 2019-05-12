@@ -5,14 +5,13 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
-	"log"
-	// log "github.com/Sirupsen/logrus"
 	"github.com/go-pg/pg"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/smtp"
 	"os"
@@ -26,23 +25,6 @@ import (
 	"homedog/ORM"
 	Database "homedog/Platform/Database"
 )
-
-// Example is we're trying to find a 2 bedroom apartment for July 1, not basement or condo,
-// 5km radius from coordinates except for Hochelaga and Outremont, specific areas of town we want to avoid
-
-// That's easy to do by starting with Craigslist and Kijiji's built-in filters from their website
-// (RSS links configured below), supplemented with a few 'removal' keywords that flag a post as
-// definitely not interesting.
-//
-var REMOVALS = []string{"may 1*",
-	"june 1*",
-	"hochelaga",
-	"outremont",
-	"condo",
-	"basement",
-	"sous[- ]sol",
-	// ( "2e", "triplex" ),
-}
 
 type Query struct {
 	Channel Channel `xml:"channel"`
@@ -76,6 +58,7 @@ func init() {
 
 func main() {
 	log.Println("Homedog v0.2 starting")
+	time.Sleep(time.Second)
 
 	config := getSubscribers()
 
@@ -87,7 +70,6 @@ func main() {
 
 		duration := 60 * time.Second
 		log.Println("sleeping for", duration, "...")
-		// time.Sleep(time.Duration(60*6) * time.Second)
 		time.Sleep(duration)
 	}
 }
@@ -109,7 +91,7 @@ func check(source string, subscriber *Subscriber) { //url string, email string) 
 
 	items := fetch(source, subscriber)
 
-	post_items(source, items, subscriber.Email)
+	post_items(source, items, subscriber)
 }
 
 // --------------------------------------------------------------------------------
@@ -201,25 +183,29 @@ func preprocess(items []Item) {
 }
 
 // items from RSS
-func post_items(source string, items []Item, email string) {
+func post_items(source string, items []Item, subscriber *Subscriber) {
 	var posts []ORM.Post
-	if err := db.Model(&posts).Where("recip = ?", email).Select(); err != nil {
+	if err := db.Model(&posts).Where("recip = ?", subscriber.Email).Select(); err != nil {
 		log.Fatal(err)
 		os.Exit(1)
 	}
 
 	for _, rssItem := range items {
 		match := false
+		low_priority := false
 		for _, post := range posts {
-			score := rate(rssItem, &post)
+			score := rate(rssItem, &post, subscriber)
 
 			if score >= 1 {
 				match = true
 				break
 			}
+			if score > 0 && score < 1 {
+				low_priority = true
+			}
 		}
 		if !match {
-			send(source, rssItem, email)
+			send(source, rssItem, subscriber, low_priority)
 		}
 	}
 }
@@ -227,8 +213,8 @@ func post_items(source string, items []Item, email string) {
 // Comparison function; contains various ideas but the main one is use of
 // normalize() to compare title and body (if either match exactly, post
 // is considered a duplicate).
-func rate(rssItem Item, dbItem *ORM.Post) int {
-	score := 0
+func rate(rssItem Item, dbItem *ORM.Post, subscriber *Subscriber) float64 {
+	score := 0.0
 
 	rssTitle := normalize(rssItem.Title)
 	rssBody := normalize(rssItem.Body)
@@ -250,14 +236,8 @@ func rate(rssItem Item, dbItem *ORM.Post) int {
 	// 	increment(dbItem)
 	// }
 
-	agg := fmt.Sprintf("%s %s", rssTitle, rssBody)
-
-	words := strings.Split(agg, " ")
-
-	for _, kwd := range REMOVALS {
-		if contains(words, kwd) {
-			score += 1
-		}
+	if subscriber.WouldRemove(rssTitle, rssBody) {
+		score += 0.5
 	}
 
 	return score
@@ -321,12 +301,12 @@ func increment(dbItem Item) {
 */
 
 // Send email with this post
-func send(source string, rssItem Item, recip string) {
-	log.Printf("Sending to %s: %s\n", recip, rssItem.Title)
+func send(source string, rssItem Item, subscriber *Subscriber, low_priority bool) {
+	log.Printf("Sending to %s: %s\n", subscriber.Email, rssItem.Title)
 
 	post := ORM.Post{
 		Source:  source,
-		Recip:   recip,
+		Recip:   subscriber.Email,
 		Title:   rssItem.Title,
 		Body:    rssItem.Body,
 		Url:     rssItem.Link,
@@ -336,9 +316,14 @@ func send(source string, rssItem Item, recip string) {
 		log.Fatal(err)
 	}
 
-	subject := fmt.Sprintf("Homedog #%d - %s", post.Id, rssItem.Title)
+	priority := " "
+	if low_priority {
+		priority = "[LOW-PRIORITY] "
+	}
 
-	email(post.Id, recip, source, subject, rssItem.Title, rssItem.Link, rssItem.Body)
+	subject := fmt.Sprintf("Homedog #%d %s- %s", post.Id, priority, rssItem.Title)
+
+	email(post.Id, subscriber.Email, source, subject, rssItem.Title, rssItem.Link, rssItem.Body)
 }
 
 func email(id int64, recip string, source string, subject string, title string, link string, body string) {

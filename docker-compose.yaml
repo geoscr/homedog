@@ -20,16 +20,6 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
-  # Proxy servers & webpack-dev-servers to separate local domains - see each service's env var VIRTUAL_HOST
-  #nginx-proxy:
-  #  image: jwilder/nginx-proxy
-  #  ports:
-  #    - "80:80"
-  #  volumes:
-  #    - /var/run/docker.sock:/tmp/docker.sock:ro
-  #  restart: always
-  #  privileged: true
-
   homedog:
     container_name: homedog
     image: homedog
@@ -37,11 +27,10 @@ services:
     depends_on:
       - postgres
     volumes:
-      - ./platforms/Go/config:/app/config
+      - ./config:/app/config
       - ./platforms/Go/src:/app/src
     links:
       - postgres:db.homedog
     env_file:
       - .env
     restart: always
-    #hostname: homedog
