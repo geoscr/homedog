@@ -21,6 +21,7 @@ In this way, obvious negative matches are filtered out, and potential positives 
 
 ### Prerequisites
 
+- An SMTP server (could be AWS' SES)
 - POSIX-compliant host
 - Docker
 
