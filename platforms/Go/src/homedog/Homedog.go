@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -49,6 +50,8 @@ var (
 func init() {
 	log.SetFlags(log.LstdFlags | log.Llongfile | log.Lmicroseconds)
 
+	log.Println("Homedog v0.4 starting")
+
 	flag_email = flag.Bool("email", true, "send emails")
 	flag.Parse()
 
@@ -57,7 +60,6 @@ func init() {
 }
 
 func main() {
-	log.Println("Homedog v0.3 starting")
 	time.Sleep(time.Second)
 
 	config := getSubscribers()
@@ -86,21 +88,46 @@ func db_init() {
 
 // --------------------------------------------------------------------------------
 
-func check(source string, subscriber *Subscriber) { //url string, email string) {
-	log.Println("Checking", source)
+func getSubscribers() *Config {
+	var (
+		err         error
+		config_file []byte
+	)
 
-	items := fetch(source, subscriber)
+	if config_file, err = ioutil.ReadFile(os.Getenv("HOMEDOG_CONFIG")); err != nil {
+		log.Printf("File error: %v\n", err)
+		os.Exit(1)
+	}
 
-	post_items(source, items, subscriber)
+	config_str := string(config_file)
+
+	var config Config
+	if err = json.Unmarshal([]byte(config_str), &config); err != nil {
+		log.Panicf("File error: %v\n", err)
+		os.Exit(1)
+	}
+
+	return &config
 }
 
 // --------------------------------------------------------------------------------
 
-func fetch(source string, subscriber *Subscriber) []Item {
+func check(source string, subscriber *Subscriber) { //url string, email string) {
+	log.Println("Checking", source)
+
+	if url := subscriber.UrlForSource(source); url != nil {
+		items := fetch(source, subscriber, *url)
+
+		post_items(source, items, subscriber)
+	}
+}
+
+// --------------------------------------------------------------------------------
+
+func fetch(source string, subscriber *Subscriber, url string) []Item {
 	var (
 		err       error
 		xml_bytes []byte
-		url       = subscriber.UrlForSource(source)
 	)
 	log.Println("Fetch:", source, url)
 

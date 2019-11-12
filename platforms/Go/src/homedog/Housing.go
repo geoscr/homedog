@@ -1,71 +1,16 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 )
 
-type SubscriberProperties struct {
-	HasPic          int
-	Max_bedrooms    int
-	Max_price       int
-	Min_bedrooms    int
-	Min_price       int
-	Postal          string
-	Coordinates     string
-	Search_distance int
-	Furnished       int
-	Exclusions      []string
-}
+// type HousingCategory struct {
+// }
 
-type Subscriber struct {
-	Email      string
-	Properties SubscriberProperties
-}
-
-type Config struct {
-	Subscribers []*Subscriber
-}
-
-func getSubscribers() *Config {
-	var (
-		err         error
-		config_file []byte
-	)
-
-	if config_file, err = ioutil.ReadFile(os.Getenv("HOMEDOG_CONFIG")); err != nil {
-		log.Printf("File error: %v\n", err)
-		os.Exit(1)
-	}
-
-	config_str := string(config_file)
-
-	var config Config
-	if err = json.Unmarshal([]byte(config_str), &config); err != nil {
-		log.Panicf("File error: %v\n", err)
-		os.Exit(1)
-	}
-
-	return &config
-}
-
-func (sub *Subscriber) UrlForSource(source string) string {
-	if source == "craigslist" {
-		return sub.UrlForCraigslist()
-	}
-	if source == "kijiji" {
-		return sub.RssUrlForKijiji()
-	}
-	return ""
-}
-
-func (sub *Subscriber) UrlForCraigslist() string {
+func (sub *Subscriber) HousingUrlForCraigslist() *string {
 	base := "https://montreal.craigslist.org/search/apa?"
 
 	v := url.Values{}
@@ -81,7 +26,8 @@ func (sub *Subscriber) UrlForCraigslist() string {
 	v.Set("search_distance", strconv.Itoa(sub.Properties.Search_distance))
 	v.Set("is_furnished", strconv.Itoa(sub.Properties.Furnished))
 
-	return fmt.Sprintf("%s%s", base, v.Encode())
+	r := fmt.Sprintf("%s%s", base, v.Encode())
+	return &r
 }
 
 var (
@@ -100,7 +46,7 @@ var (
 	}
 )
 
-func (sub *Subscriber) RssUrlForKijiji() string {
+func (sub *Subscriber) HousingRssUrlForKijiji() *string {
 	rssUrl := "https://www.kijiji.ca/rss-srp-apartments-condos/ville-de-montreal/"
 
 	minBedrooms := sub.Properties.Min_bedrooms
@@ -128,11 +74,13 @@ func (sub *Subscriber) RssUrlForKijiji() string {
 	v.Set("furnished", strconv.Itoa(sub.Properties.Furnished))
 	// v.Set("ll", sub.Properties.Coordinates)
 
-	return fmt.Sprintf("%s?%s&ll=%s", rssUrl, v.Encode(), sub.Properties.Coordinates)
+	r := fmt.Sprintf("%s?%s&ll=%s", rssUrl, v.Encode(), sub.Properties.Coordinates)
+	return &r
 	// return fmt.Sprintf("%s%s", rssUrl, v.Encode())
 }
 
-func (sub *Subscriber) WebUrlForKijiji() string {
+// Unused (for generating a link to web version of RSS feed)
+func (sub *Subscriber) HousingWebUrlForKijiji() string {
 	webUrl := "https://www.kijiji.ca/b-a-louer/ville-de-montreal/apartment/"
 
 	minBedrooms := sub.Properties.Min_bedrooms
